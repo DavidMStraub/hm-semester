@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Tuple, Literal
+from typing import Literal
 from dateutil.easter import easter
 
 from icalendar import Calendar, Event
@@ -14,16 +14,28 @@ VACATION_START = "vacation_start"
 VACATION_END = "vacation_end"
 BREAKS = "breaks"
 LABEL = "label"
-# labels
-LECTURE_PERIOD = "Lecture Period"
-SEMESTER_BREAK = "Semester Break"
-CHRISTMAS_BREAK = "Christmas Break"
-EASTER_BREAK = "Easter Break"
-PENTECOST_BREAK = "Pentecost Break"
-START = "Start"
-END = "End"
-WINTER_SEMESTER = "Winter Semester"
-SUMMER_SEMESTER = "Summer Semester"
+
+# Define labels in both languages
+LABELS = {
+    "en": {
+        "CHRISTMAS_BREAK": "Christmas Break",
+        "EASTER_BREAK": "Easter Break",
+        "PENTECOST_BREAK": "Pentecost Break",
+        "START": "Start",
+        "END": "End",
+        "WINTER_SEMESTER": "Winter Semester",
+        "SUMMER_SEMESTER": "Summer Semester",
+    },
+    "de": {
+        "CHRISTMAS_BREAK": "Weihnachtsferien",
+        "EASTER_BREAK": "Osterferien",
+        "PENTECOST_BREAK": "Pfingstferien",
+        "START": "Beginn",
+        "END": "Ende",
+        "WINTER_SEMESTER": "Wintersemester",
+        "SUMMER_SEMESTER": "Sommersemester",
+    },
+}
 
 
 def adjust_start_date(start_date: date) -> date:
@@ -40,7 +52,7 @@ def adjust_end_date(end_date: date) -> date:
     return end_date
 
 
-def get_christmas_break(year: int) -> Tuple[date, date]:
+def get_christmas_break(year: int) -> tuple[date, date]:
     """Determine the Christmas break period."""
     start = date(year, 12, 24)
     if start.weekday() in [6, 0, 1]:  # Sunday, Monday, Tuesday
@@ -51,7 +63,7 @@ def get_christmas_break(year: int) -> Tuple[date, date]:
     return start, end
 
 
-def get_easter_break(year: int) -> Tuple[date, date]:
+def get_easter_break(year: int) -> tuple[date, date]:
     """Determine the Easter break period from Maundy Thursday to the following Tuesday."""
     easter_sunday = easter(year)
     start = easter_sunday - timedelta(days=3)  # Maundy Thursday
@@ -59,16 +71,20 @@ def get_easter_break(year: int) -> Tuple[date, date]:
     return start, end
 
 
-def get_pentecost_break(year: int) -> Tuple[date, date]:
+def get_pentecost_break(year: int) -> tuple[date, date]:
     """Determine the Pentecost break from the Friday before to the following Tuesday."""
     pentecost_sunday = easter(year) + timedelta(days=49)
     start = pentecost_sunday - timedelta(days=2)  # Friday before Pentecost
     end = pentecost_sunday + timedelta(days=2)  # Tuesday after Pentecost
     return start, end
 
-def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
-    """Generate an iCalendar file for the given semester and year."""
+
+def generate_calendar(
+    year: int, semester: Literal["winter", "summer"], lang: Literal["de", "en"] = "en"
+) -> None:
+    """Generate an iCalendar file for the given semester and year in the specified language."""
     cal = Calendar()
+    l = LABELS[lang]  # Get labels for the requested language
 
     # Define semester parameters based on semester type
     semester_params = {
@@ -77,8 +93,8 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
             END_DATE: adjust_end_date(date(year + 1, 1, 25)),
             VACATION_START: adjust_end_date(date(year + 1, 1, 25)) + timedelta(days=1),
             VACATION_END: date(year + 1, 3, 14),
-            BREAKS: [(get_christmas_break(year), CHRISTMAS_BREAK)],
-            LABEL: WINTER_SEMESTER,
+            BREAKS: [(get_christmas_break(year), l["CHRISTMAS_BREAK"])],
+            LABEL: l["WINTER_SEMESTER"],
         },
         SUMMER: {
             START_DATE: adjust_start_date(date(year, 3, 15)),
@@ -86,10 +102,10 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
             VACATION_START: adjust_end_date(date(year, 7, 10)) + timedelta(days=1),
             VACATION_END: date(year, 9, 30),
             BREAKS: [
-                (get_easter_break(year), EASTER_BREAK),
-                (get_pentecost_break(year), PENTECOST_BREAK),
+                (get_easter_break(year), l["EASTER_BREAK"]),
+                (get_pentecost_break(year), l["PENTECOST_BREAK"]),
             ],
-            LABEL: SUMMER_SEMESTER,
+            LABEL: l["SUMMER_SEMESTER"],
         },
     }
 
@@ -97,7 +113,7 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
 
     # Add semester start (all-day event)
     event = Event()
-    event.add("summary", f"{START}: {params[LABEL]} (HM)")
+    event.add("summary", f"{l['START']}: {params[LABEL]} (HM)")
     event.add("dtstart", params[START_DATE])
     event.add("dtend", params[START_DATE] + timedelta(days=1))  # End date is exclusive
     event.add("transp", "TRANSPARENT")  # Don't block time
@@ -106,7 +122,7 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
 
     # Add semester end (all-day event)
     event = Event()
-    event.add("summary", f"{END}: {params[LABEL]} (HM)")
+    event.add("summary", f"{l['END']}: {params[LABEL]} (HM)")
     event.add("dtstart", params[END_DATE])
     event.add("dtend", params[END_DATE] + timedelta(days=1))  # End date is exclusive
     event.add("transp", "TRANSPARENT")  # Don't block time
@@ -122,12 +138,14 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
         cal.add_component(event)
 
     # Write to file
-    filename = f"{semester}_semester_{year}.ics"
+    filename = f"{semester}_semester_{year}_{lang}.ics"
     with open(filename, "wb") as f:
         f.write(cal.to_ical())
     print(f"Calendar saved as {filename}")
 
 
 # Example usage
-generate_calendar(2025, WINTER)
-generate_calendar(2025, SUMMER)
+generate_calendar(2025, WINTER, "en")
+generate_calendar(2025, SUMMER, "en")
+generate_calendar(2025, WINTER, "de")
+generate_calendar(2025, SUMMER, "de")
