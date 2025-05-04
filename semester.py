@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from typing import Tuple, Literal
+from dateutil.easter import easter
 
 from icalendar import Calendar, Event
 
@@ -31,7 +32,7 @@ def get_christmas_break(year: int) -> Tuple[date, date]:
 
 def get_easter_break(year: int) -> Tuple[date, date]:
     """Determine the Easter break period from Maundy Thursday to the following Tuesday."""
-    easter_sunday = get_easter_sunday(year)
+    easter_sunday = easter(year)
     start = easter_sunday - timedelta(days=3)  # Maundy Thursday
     end = easter_sunday + timedelta(days=2)  # Tuesday after Easter
     return start, end
@@ -39,29 +40,10 @@ def get_easter_break(year: int) -> Tuple[date, date]:
 
 def get_pentecost_break(year: int) -> Tuple[date, date]:
     """Determine the Pentecost break from the Friday before to the following Tuesday."""
-    pentecost_sunday = get_easter_sunday(year) + timedelta(days=49)
+    pentecost_sunday = easter(year) + timedelta(days=49)
     start = pentecost_sunday - timedelta(days=2)  # Friday before Pentecost
     end = pentecost_sunday + timedelta(days=2)  # Tuesday after Pentecost
     return start, end
-
-
-def get_easter_sunday(year: int) -> date:
-    """Compute the date of Easter Sunday using the Meeus/Jones/Butcher algorithm."""
-    a = year % 19
-    b = year // 100
-    c = year % 100
-    d = b // 4
-    e = b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4
-    k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month = (h + l - 7 * m + 114) // 31
-    day = ((h + l - 7 * m + 114) % 31) + 1
-    return date(year, month, day)
 
 
 def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
