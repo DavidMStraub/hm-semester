@@ -4,6 +4,22 @@ from dateutil.easter import easter
 
 from icalendar import Calendar, Event
 
+# semesters
+WINTER = "winter"
+SUMMER = "summer"
+# keys
+START_DATE = "start_date"
+END_DATE = "end_date"
+VACATION_START = "vacation_start"
+VACATION_END = "vacation_end"
+BREAKS = "breaks"
+# labels
+LECTURE_PERIOD = "Lecture Period"
+SEMESTER_BREAK = "Semester Break"
+CHRISTMAS_BREAK = "Christmas Break"
+EASTER_BREAK = "Easter Break"
+PENTECOST_BREAK = "Pentecost Break"
+
 
 def adjust_start_date(start_date: date) -> date:
     """Adjust start date to the next Monday if it falls on a Friday, Saturday, or Sunday."""
@@ -50,53 +66,50 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
     """Generate an iCalendar file for the given semester and year."""
     cal = Calendar()
 
-    if semester == "winter":
-        start_date = adjust_start_date(date(year, 10, 1))
-        end_date = adjust_end_date(date(year + 1, 1, 25))
-        break_start, break_end = get_christmas_break(year)
-        break_label = "Christmas Break"
-        vacation_start = end_date + timedelta(days=1)
-        vacation_end = date(year + 1, 3, 14)
-    else:
-        start_date = adjust_start_date(date(year, 3, 15))
-        end_date = adjust_end_date(date(year, 7, 10))
-        easter_start, easter_end = get_easter_break(year)
-        pentecost_start, pentecost_end = get_pentecost_break(year)
-        break_start, break_end = None, None
-        vacation_start = end_date + timedelta(days=1)
-        vacation_end = date(year, 9, 30)
+    # Define semester parameters based on semester type
+    semester_params = {
+        WINTER: {
+            START_DATE: adjust_start_date(date(year, 10, 1)),
+            END_DATE: adjust_end_date(date(year + 1, 1, 25)),
+            VACATION_START: adjust_end_date(date(year + 1, 1, 25)) + timedelta(days=1),
+            VACATION_END: date(year + 1, 3, 14),
+            BREAKS: [(get_christmas_break(year), CHRISTMAS_BREAK)],
+        },
+        SUMMER: {
+            START_DATE: adjust_start_date(date(year, 3, 15)),
+            END_DATE: adjust_end_date(date(year, 7, 10)),
+            VACATION_START: adjust_end_date(date(year, 7, 10)) + timedelta(days=1),
+            VACATION_END: date(year, 9, 30),
+            BREAKS: [
+                (get_easter_break(year), EASTER_BREAK),
+                (get_pentecost_break(year), PENTECOST_BREAK),
+            ],
+        },
+    }
+
+    params = semester_params[semester]
 
     # Add lecture period
     event = Event()
-    event.add("summary", "Lecture Period")
-    event.add("dtstart", start_date)
-    event.add("dtend", end_date)
+    event.add("summary", LECTURE_PERIOD)
+    event.add("dtstart", params[START_DATE])
+    event.add("dtend", params[END_DATE])
     cal.add_component(event)
 
     # Add semester break
     event = Event()
-    event.add("summary", "Semester Break")
-    event.add("dtstart", vacation_start)
-    event.add("dtend", vacation_end)
+    event.add("summary", SEMESTER_BREAK)
+    event.add("dtstart", params[VACATION_START])
+    event.add("dtend", params[VACATION_END])
     cal.add_component(event)
 
     # Add holiday breaks
-    if semester == "winter":
+    for (break_start, break_end), break_label in params[BREAKS]:
         event = Event()
         event.add("summary", break_label)
         event.add("dtstart", break_start)
         event.add("dtend", break_end)
         cal.add_component(event)
-    else:
-        for start, end, label in [
-            (easter_start, easter_end, "Easter Break"),
-            (pentecost_start, pentecost_end, "Pentecost Break"),
-        ]:
-            event = Event()
-            event.add("summary", label)
-            event.add("dtstart", start)
-            event.add("dtend", end)
-            cal.add_component(event)
 
     # Write to file
     filename = f"{semester}_semester_{year}.ics"
@@ -106,5 +119,5 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
 
 
 # Example usage
-generate_calendar(2025, "winter")
-generate_calendar(2025, "summer")
+generate_calendar(2025, WINTER)
+generate_calendar(2025, SUMMER)
