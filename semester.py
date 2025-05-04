@@ -13,12 +13,17 @@ END_DATE = "end_date"
 VACATION_START = "vacation_start"
 VACATION_END = "vacation_end"
 BREAKS = "breaks"
+LABEL = "label"
 # labels
 LECTURE_PERIOD = "Lecture Period"
 SEMESTER_BREAK = "Semester Break"
 CHRISTMAS_BREAK = "Christmas Break"
 EASTER_BREAK = "Easter Break"
 PENTECOST_BREAK = "Pentecost Break"
+START = "Start"
+END = "End"
+WINTER_SEMESTER = "Winter Semester"
+SUMMER_SEMESTER = "Summer Semester"
 
 
 def adjust_start_date(start_date: date) -> date:
@@ -61,7 +66,6 @@ def get_pentecost_break(year: int) -> Tuple[date, date]:
     end = pentecost_sunday + timedelta(days=2)  # Tuesday after Pentecost
     return start, end
 
-
 def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
     """Generate an iCalendar file for the given semester and year."""
     cal = Calendar()
@@ -74,6 +78,7 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
             VACATION_START: adjust_end_date(date(year + 1, 1, 25)) + timedelta(days=1),
             VACATION_END: date(year + 1, 3, 14),
             BREAKS: [(get_christmas_break(year), CHRISTMAS_BREAK)],
+            LABEL: WINTER_SEMESTER,
         },
         SUMMER: {
             START_DATE: adjust_start_date(date(year, 3, 15)),
@@ -84,31 +89,36 @@ def generate_calendar(year: int, semester: Literal["winter", "summer"]) -> None:
                 (get_easter_break(year), EASTER_BREAK),
                 (get_pentecost_break(year), PENTECOST_BREAK),
             ],
+            LABEL: SUMMER_SEMESTER,
         },
     }
 
     params = semester_params[semester]
 
-    # Add lecture period
+    # Add semester start (all-day event)
     event = Event()
-    event.add("summary", LECTURE_PERIOD)
+    event.add("summary", f"{START}: {params[LABEL]} (HM)")
     event.add("dtstart", params[START_DATE])
-    event.add("dtend", params[END_DATE])
+    event.add("dtend", params[START_DATE] + timedelta(days=1))  # End date is exclusive
+    event.add("transp", "TRANSPARENT")  # Don't block time
+    event["X-MICROSOFT-CDO-ALLDAYEVENT"] = "TRUE"  # Mark as all-day event
     cal.add_component(event)
 
-    # Add semester break
+    # Add semester end (all-day event)
     event = Event()
-    event.add("summary", SEMESTER_BREAK)
-    event.add("dtstart", params[VACATION_START])
-    event.add("dtend", params[VACATION_END])
+    event.add("summary", f"{END}: {params[LABEL]} (HM)")
+    event.add("dtstart", params[END_DATE])
+    event.add("dtend", params[END_DATE] + timedelta(days=1))  # End date is exclusive
+    event.add("transp", "TRANSPARENT")  # Don't block time
+    event["X-MICROSOFT-CDO-ALLDAYEVENT"] = "TRUE"  # Mark as all-day event
     cal.add_component(event)
 
-    # Add holiday breaks
+    # Add holiday breaks as multi-day events
     for (break_start, break_end), break_label in params[BREAKS]:
         event = Event()
-        event.add("summary", break_label)
+        event.add("summary", f"{break_label} (HM)")
         event.add("dtstart", break_start)
-        event.add("dtend", break_end)
+        event.add("dtend", break_end + timedelta(days=1))  # End date is exclusive
         cal.add_component(event)
 
     # Write to file
