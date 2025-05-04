@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Literal
 from dateutil.easter import easter
 
@@ -84,6 +84,10 @@ def generate_calendar(
 ) -> None:
     """Generate an iCalendar file for the given semester and year in the specified language."""
     cal = Calendar()
+    # Add required calendar properties for RFC 5545 compliance
+    cal.add("prodid", "-//Munich University of Applied Sciences//Semester Calendar//EN")
+    cal.add("version", "2.0")
+
     l = LABELS[lang]  # Get labels for the requested language
 
     # Define semester parameters based on semester type
@@ -118,6 +122,9 @@ def generate_calendar(
     event.add("dtend", params[START_DATE] + timedelta(days=1))  # End date is exclusive
     event.add("transp", "TRANSPARENT")  # Don't block time
     event["X-MICROSOFT-CDO-ALLDAYEVENT"] = "TRUE"  # Mark as all-day event
+    # Add required event properties for RFC 5545 compliance
+    event.add("dtstamp", datetime.now())
+    event.add("uid", f"{semester}-start-{year}@hm-semester.example.com")
     cal.add_component(event)
 
     # Add semester end (all-day event)
@@ -127,14 +134,20 @@ def generate_calendar(
     event.add("dtend", params[END_DATE] + timedelta(days=1))  # End date is exclusive
     event.add("transp", "TRANSPARENT")  # Don't block time
     event["X-MICROSOFT-CDO-ALLDAYEVENT"] = "TRUE"  # Mark as all-day event
+    # Add required event properties for RFC 5545 compliance
+    event.add("dtstamp", datetime.now())
+    event.add("uid", f"{semester}-end-{year}@hm-semester.example.com")
     cal.add_component(event)
 
     # Add holiday breaks as multi-day events
-    for (break_start, break_end), break_label in params[BREAKS]:
+    for i, ((break_start, break_end), break_label) in enumerate(params[BREAKS]):
         event = Event()
         event.add("summary", f"{break_label} (HM)")
         event.add("dtstart", break_start)
         event.add("dtend", break_end + timedelta(days=1))  # End date is exclusive
+        # Add required event properties for RFC 5545 compliance
+        event.add("dtstamp", datetime.now())
+        event.add("uid", f"{semester}-break-{i}-{year}@hm-semester.example.com")
         cal.add_component(event)
 
     # Write to file
