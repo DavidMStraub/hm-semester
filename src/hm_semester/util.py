@@ -1,5 +1,9 @@
 from datetime import date, timedelta
+
 from dateutil.easter import easter
+
+from .const import LABELS
+from .types import SemesterInfo
 
 
 def adjust_start_date(start_date: date) -> date:
@@ -41,3 +45,44 @@ def get_pentecost_break(year: int) -> tuple[date, date]:
     start = pentecost_sunday - timedelta(days=2)  # Friday before Pentecost
     end = pentecost_sunday + timedelta(days=2)  # Tuesday after Pentecost
     return start, end
+
+
+def get_winter_semester_info(year: int, lang: str) -> SemesterInfo:
+    l = LABELS[lang]
+    start_date = adjust_start_date(date(year, 10, 1))
+    end_date = adjust_end_date(date(year + 1, 1, 25))
+    vacation_start = end_date + timedelta(days=1)
+    vacation_end = date(year + 1, 3, 14)
+    breaks: dict[str, tuple[date, date]] = {
+        l["CHRISTMAS_BREAK"]: get_christmas_break(year)
+    }
+    label = l["WINTER_SEMESTER"]
+    return SemesterInfo(
+        start_date=start_date,
+        end_date=end_date,
+        vacation_start=vacation_start,
+        vacation_end=vacation_end,
+        breaks=breaks,
+        label=label,
+    )
+
+
+def get_summer_semester_info(year: int, lang: str) -> SemesterInfo:
+    l = LABELS[lang]
+    start_date = adjust_start_date(date(year, 3, 15))
+    end_date = adjust_end_date(date(year, 7, 10))
+    vacation_start = end_date + timedelta(days=1)
+    vacation_end = date(year, 9, 30)
+    breaks: dict[str, tuple[date, date]] = {
+        l["EASTER_BREAK"]: get_easter_break(year),
+        l["PENTECOST_BREAK"]: get_pentecost_break(year),
+    }
+    label = l["SUMMER_SEMESTER"]
+    return SemesterInfo(
+        start_date=start_date,
+        end_date=end_date,
+        vacation_start=vacation_start,
+        vacation_end=vacation_end,
+        breaks=breaks,
+        label=label,
+    )

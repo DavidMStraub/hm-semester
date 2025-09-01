@@ -1,5 +1,5 @@
 from datetime import date
-from hm_semester.semester import (
+from hm_semester.util import (
     adjust_start_date,
     adjust_end_date,
     get_christmas_break,
