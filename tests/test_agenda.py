@@ -1,4 +1,5 @@
 from datetime import time
+from zoneinfo import ZoneInfo
 
 import icalendar
 
@@ -88,12 +89,12 @@ def test_create_agenda_holiday_gaps():
 
         assert "UID" in event, f"No UID found for event {event.get('summary')}"
         assert (
-            "EXDATE:" in raw_event
+            "EXDATE" in raw_event
         ), f"No EXDATE found for event {event.get('summary')}"
 
         # Check if December or January dates are in the EXDATE values
         found_christmas = False
-        if "EXDATE:2025122" in raw_event or "EXDATE:202601" in raw_event:
+        if "2025122" in raw_event or "202601" in raw_event:
             found_christmas = True
 
         assert (
@@ -104,3 +105,34 @@ def test_create_agenda_holiday_gaps():
     assert vevents[1].get("summary") == "Biweekly Seminar"
     assert vevents[0].get("location") == "Room 101"
     assert vevents[1].get("location") == "Room 202"
+
+
+def test_timezone():
+    custom_timezone = "America/New_York"
+    events = [
+        WeeklyEvent(
+            summary="Timezone Test Event",
+            weekday=1,
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            timezone=custom_timezone,
+        )
+    ]
+    cal = create_agenda(events, 2025, "en", WINTER)
+    vevents = [c for c in cal.walk() if c.name == "VEVENT"]
+    assert len(vevents) == 1
+    event = vevents[0]
+    
+    dt_start = event.get("dtstart").dt
+    dt_end = event.get("dtend").dt
+    assert dt_start.tzinfo is not None
+    assert dt_start.tzinfo.key == custom_timezone
+    assert dt_end.tzinfo.key == custom_timezone
+    
+    exdates = event.get("exdate", [])
+    if not isinstance(exdates, list):
+        exdates = [exdates]
+    for exdate in exdates:
+        for dt in exdate.dts:
+            assert dt.dt.tzinfo is not None
+            assert dt.dt.tzinfo.key == custom_timezone

@@ -1,7 +1,8 @@
-from datetime import datetime, time, timedelta
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from icalendar import Calendar, Event
 
@@ -17,7 +18,8 @@ class WeeklyEvent:
     end_time: time
     location: str = ""
     biweekly: bool = False  # If True, event is every 2 weeks
-    start_week: int = 1     # 1 or 2, for biweekly events: which week to start
+    start_week: int = 1  # 1 or 2, for biweekly events: which week to start
+    timezone: str = "Europe/Berlin"
 
 
 def create_agenda(
@@ -45,7 +47,6 @@ def create_agenda(
         d = info.start_date
         while d.weekday() != ev.weekday:
             d += timedelta(days=1)
-        # For biweekly events, adjust start date to correct week
         if ev.biweekly:
             # Week 1: start on first matching weekday
             # Week 2: start on first matching weekday + 7 days
@@ -55,28 +56,31 @@ def create_agenda(
         dtend = datetime.combine(d, ev.end_time)
         event = Event()
         event.add("summary", ev.summary)
-        event.add("dtstart", dtstart)
-        event.add("dtend", dtend)
-        # Add a unique identifier for the event
+        timezone = ZoneInfo(ev.timezone)
+        event.add("dtstart", dtstart.replace(tzinfo=timezone))
+        event.add("dtend", dtend.replace(tzinfo=timezone))
         event.add("uid", str(uuid.uuid4()))
         if ev.location:
             event.add("location", ev.location)
-        # RRULE: weekly or biweekly until end of semester
         rrule = {
             "freq": "weekly",
-            "until": datetime.combine(info.end_date, ev.end_time),
+            "until": datetime.combine(info.end_date, ev.end_time).replace(
+                tzinfo=timezone
+            ),
         }
         if ev.biweekly:
             rrule["interval"] = 2
         event.add("rrule", rrule)
-        # EXDATE for all break days
         for break_start, break_end in info.breaks.values():
             exdate = break_start
             while exdate <= break_end:
-                # Only exclude if it matches the weekday
                 if exdate.weekday() == ev.weekday:
-                    event.add("exdate", datetime.combine(exdate, ev.start_time))
+                    event.add(
+                        "exdate",
+                        datetime.combine(exdate, ev.start_time).replace(
+                            tzinfo=timezone
+                        ),
+                    )
                 exdate += timedelta(days=1)
-        # Add the event to the calendar immediately after all properties are set
         cal.add_component(event)
     return cal
