@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta
 import uuid
-from typing import Literal, NamedTuple
+from dataclasses import dataclass
+from typing import Literal
 
 from icalendar import Calendar, Event
 
@@ -8,8 +9,8 @@ from .semester import get_summer_semester_info, get_winter_semester_info
 from .types import SemesterInfo
 
 
-
-class WeeklyEvent(NamedTuple):
+@dataclass
+class WeeklyEvent:
     summary: str
     weekday: int  # 0=Monday, 6=Sunday
     start_time: time
