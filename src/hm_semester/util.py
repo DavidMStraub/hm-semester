@@ -47,6 +47,26 @@ def get_pentecost_break(year: int) -> tuple[date, date]:
     return start, end
 
 
+def get_holiday_dates(semester_info: SemesterInfo) -> set[date]:
+    """
+    Return a set of all dates when lectures do not take place.
+    This includes all days within semester breaks.
+    
+    Args:
+        semester_info: The semester information containing break periods
+        
+    Returns:
+        Set of dates when lectures do not occur
+    """
+    holidays = set()
+    for break_start, break_end in semester_info.breaks.values():
+        current = break_start
+        while current <= break_end:
+            holidays.add(current)
+            current += timedelta(days=1)
+    return holidays
+
+
 def get_winter_semester_info(year: int, lang: str) -> SemesterInfo:
     l = LABELS[lang]
     start_date = adjust_start_date(date(year, 10, 1))
