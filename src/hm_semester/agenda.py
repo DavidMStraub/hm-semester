@@ -39,7 +39,10 @@ def create_agenda(
         raise ValueError("semester must be 'winter' or 'summer'")
 
     cal = Calendar()
-    cal.add("prodid", "-//Munich University of Applied Sciences//Agenda//EN")
+    if lang == "de":
+        cal.add("prodid", "-//Hochschule München//hm-agenda//DE")
+    else:
+        cal.add("prodid", "-//Munich University of Applied Sciences//hm-agenda//EN")
     cal.add("version", "2.0")
 
     for ev in events:
