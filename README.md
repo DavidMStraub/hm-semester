@@ -145,3 +145,39 @@ See [examples/create_agenda_example.py](examples/create_agenda_example.py) for a
 - UIDs are deterministic: `{course_id}-{year}-{semester}-lesson-{number}@hm.edu`
 - VTIMEZONE components are included for proper timezone handling
 - SEQUENCE field tracks version numbers for updates
+
+## Installation
+
+### From PyPI
+
+```bash
+pip install hm-semester
+```
+
+### From source
+
+```bash
+git clone https://github.com/DavidMStraub/hm-semester.git
+cd hm-semester
+pip install .
+```
+
+## Development
+
+Run tests:
+```bash
+pytest tests/
+```
+
+### Release Process
+
+This package uses GitHub Actions for automated PyPI releases:
+
+1. Update version in `pyproject.toml`
+2. Commit and push changes
+3. Create a new release on GitHub
+4. The workflow automatically builds and publishes to PyPI and TestPyPI
+
+The workflow uses [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (no API tokens needed). Configure trusted publishers:
+- PyPI: Add GitHub repository as trusted publisher at https://pypi.org/manage/account/publishing/
+- TestPyPI: Add GitHub repository at https://test.pypi.org/manage/account/publishing/
