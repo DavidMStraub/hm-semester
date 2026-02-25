@@ -31,7 +31,7 @@ def calculate_lecture_dates(
         weekday: Day of week (0=Monday, 6=Sunday)
         holidays: Set of dates when lectures don't occur
         biweekly: If True, lectures occur every 2 weeks
-        start_week: For biweekly, which week to start (1 or 2)
+        start_week: Which week to start (1, 2, 3, 4, etc.) - first lecture occurs in this week
     
     Returns:
         List of dates when lectures actually occur
@@ -43,12 +43,19 @@ def calculate_lecture_dates(
     while current.weekday() != weekday:
         current += timedelta(days=1)
     
-    # For biweekly, adjust to the correct starting week
-    if biweekly and start_week > 1:
-        current += timedelta(days=7 * (start_week - 1))
+    # For biweekly, we need to track week numbers from semester start
+    # and include only weeks matching the pattern based on start_week
+    week_number = 1
     
-    # Track occurrences for biweekly alternation
-    occurrence_count = 0
+    # Default start_week to 1 if not specified
+    if start_week is None:
+        start_week = 1
+    
+    # Skip to the starting week
+    if start_week > 1:
+        weeks_to_skip = start_week - 1
+        current += timedelta(days=7 * weeks_to_skip)
+        week_number = start_week
     
     while current <= end_date:
         if current not in holidays:
@@ -56,12 +63,13 @@ def calculate_lecture_dates(
                 # Weekly: add every non-holiday occurrence
                 lecture_dates.append(current)
             else:
-                # Biweekly: add every other non-holiday occurrence
-                if occurrence_count % 2 == 0:
+                # Biweekly: add only if week matches the pattern
+                # Pattern is determined by start_week parity
+                if (week_number - start_week) % 2 == 0:
                     lecture_dates.append(current)
-                occurrence_count += 1
         
         current += timedelta(days=7)
+        week_number += 1
     
     return lecture_dates
 
@@ -75,7 +83,8 @@ class WeeklyEvent:
     end_time: time
     location: str = ""
     biweekly: bool = False  # If True, event is every 2 weeks
-    start_week: int = 1  # 1 or 2, for biweekly events: which week to start
+    start_week: int = 1  # Which semester week to start (1, 2, 3, 4, etc.)
+    max_reps: int | None = None  # Maximum number of occurrences (None = unlimited)
     timezone: str = "Europe/Berlin"
     sequence: int = 0  # Version number for updates
 
@@ -124,6 +133,10 @@ def create_agenda(
             ev.start_week,
         )
         
+        # Limit to max_reps if specified
+        if ev.max_reps is not None:
+            lecture_dates = lecture_dates[:ev.max_reps]
+        
         timezone = ZoneInfo(ev.timezone)
         
         # Create individual event for each lecture occurrence
@@ -145,33 +158,16 @@ def create_agenda(
             if ev.sequence > 0:
                 event.add("last-modified", datetime.now())
             
-            # Set lecture time
-            dtstart = datetime.combine(lecture_date, ev.start_time)
-            dtend = datetime.combine(lecture_date, ev.end_time)
-            event.add("dtstart", dtstart.replace(tzinfo=timezone))
-            event.add("dtend", dtend.replace(tzinfo=timezone))
+            # Set lecture time in local timezone, then convert to UTC
+            # This properly handles daylight saving time transitions
+            dtstart = datetime.combine(lecture_date, ev.start_time, tzinfo=timezone)
+            dtend = datetime.combine(lecture_date, ev.end_time, tzinfo=timezone)
+            event.add("dtstart", dtstart.astimezone(ZoneInfo('UTC')))
+            event.add("dtend", dtend.astimezone(ZoneInfo('UTC')))
             
             if ev.location:
                 event.add("location", ev.location)
             
             cal.add_component(event)
-    
-    # Add VTIMEZONE components for all used timezones
-    # When using TZID, RFC 5545 requires VTIMEZONE definitions
-    # We use icalendar's built-in timezone utilities with ZoneInfo
-    for tz_name in timezones_needed:
-        try:
-            from icalendar import Timezone as VTimezone
-            tz = ZoneInfo(tz_name)
-            
-            # Create a minimal but valid VTIMEZONE component
-            vtimezone = VTimezone()
-            vtimezone.add('TZID', tz_name)
-            
-            # icalendar will handle the rest when serializing
-            cal.add_component(vtimezone)
-        except Exception:
-            # If timezone generation fails, continue without it
-            pass
     
     return cal
