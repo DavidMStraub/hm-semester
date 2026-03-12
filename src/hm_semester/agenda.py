@@ -23,7 +23,8 @@ def calculate_lecture_dates(
     Calculate actual lecture dates, skipping holidays and maintaining biweekly alternation.
     
     For biweekly lectures, if a holiday interrupts the pattern, subsequent lectures shift
-    to maintain the alternating pattern (e.g., week 1, 3, 5, 8 if week 7 is a holiday).
+    to maintain the alternating pattern (e.g., if week 3 is a holiday, shift to week 4, 
+    then continue biweekly from there: 4, 6, 8...).
     
     Args:
         start_date: First day of semester
@@ -43,10 +44,6 @@ def calculate_lecture_dates(
     while current.weekday() != weekday:
         current += timedelta(days=1)
     
-    # For biweekly, we need to track week numbers from semester start
-    # and include only weeks matching the pattern based on start_week
-    week_number = 1
-    
     # Default start_week to 1 if not specified
     if start_week is None:
         start_week = 1
@@ -55,7 +52,9 @@ def calculate_lecture_dates(
     if start_week > 1:
         weeks_to_skip = start_week - 1
         current += timedelta(days=7 * weeks_to_skip)
-        week_number = start_week
+    
+    # Track occurrences for biweekly alternation (not week numbers)
+    occurrence_count = 0
     
     while current <= end_date:
         if current not in holidays:
@@ -63,13 +62,12 @@ def calculate_lecture_dates(
                 # Weekly: add every non-holiday occurrence
                 lecture_dates.append(current)
             else:
-                # Biweekly: add only if week matches the pattern
-                # Pattern is determined by start_week parity
-                if (week_number - start_week) % 2 == 0:
+                # Biweekly: add every other non-holiday occurrence
+                if occurrence_count % 2 == 0:
                     lecture_dates.append(current)
+                occurrence_count += 1
         
         current += timedelta(days=7)
-        week_number += 1
     
     return lecture_dates
 

@@ -291,3 +291,40 @@ def test_biweekly_start_week_greater_than_two():
             for i in range(len(dates) - 1):
                 days_diff = (dates[i + 1] - dates[i]).days
                 assert days_diff >= 14, f"{course_id} events too close: {days_diff} days between {dates[i]} and {dates[i+1]}"
+
+
+def test_biweekly_holiday_shifts_to_next_week():
+    """Test that when a biweekly event's scheduled week is a holiday, it shifts to the next available week."""
+    # Summer 2026 has Easter holiday on week 3 Thursday (April 2-7)
+    # Group starting in week 3 should shift to week 4, then continue biweekly from there
+    events = [
+        WeeklyEvent(
+            summary="Group starting week 3",
+            course_id="week3-group",
+            weekday=3,  # Thursday
+            start_time=time(15, 0),
+            end_time=time(16, 30),
+            biweekly=True,
+            start_week=3,
+        )
+    ]
+    
+    cal = create_agenda(events, 2026, "en", "summer")
+    vevents = [c for c in cal.walk() if c.name == "VEVENT"]
+    
+    dates = sorted([event.get("dtstart").dt.date() for event in vevents])
+    
+    # Week 3 Thursday is April 2 (holiday), so should shift to week 4 (April 9)
+    # Then continue biweekly: week 4, 6, 8, 10...
+    from datetime import date, timedelta
+    
+    # First occurrence should be April 9 (week 4), not skipping to April 16 (week 5)
+    assert dates[0] == date(2026, 4, 9), f"Expected first date to be April 9 (shifted from holiday), got {dates[0]}"
+    
+    # Second occurrence should be April 23 (two weeks after April 9)
+    assert dates[1] == date(2026, 4, 23), f"Expected second date to be April 23, got {dates[1]}"
+    
+    # Verify all dates are exactly 2 weeks apart
+    for i in range(len(dates) - 1):
+        days_diff = (dates[i + 1] - dates[i]).days
+        assert days_diff == 14, f"Events should be exactly 14 days apart, got {days_diff} between {dates[i]} and {dates[i+1]}"
