@@ -1,3 +1,5 @@
+import csv
+import io
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
@@ -169,3 +171,51 @@ def create_agenda(
             cal.add_component(event)
     
     return cal
+
+
+def create_moodle_csv(
+    events: list[WeeklyEvent],
+    year: int,
+    lang: Literal["de", "en"],
+    semester: Literal["winter", "summer"],
+) -> str:
+    """
+    Create a Moodle presence plugin CSV for all events.
+    Format: groups;sessiondate;from;to
+    where sessiondate is DD-MM-YYYY and groups is the event summary.
+    """
+    if semester == "winter":
+        info: SemesterInfo = get_winter_semester_info(year, lang)
+    elif semester == "summer":
+        info: SemesterInfo = get_summer_semester_info(year, lang)
+    else:
+        raise ValueError("semester must be 'winter' or 'summer'")
+
+    holidays = get_holiday_dates(info)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+    writer.writerow(["groups", "sessiondate", "from", "to", "Allow students to record own attendance"])
+
+    for ev in events:
+        lecture_dates = calculate_lecture_dates(
+            info.start_date,
+            info.end_date,
+            ev.weekday,
+            holidays,
+            ev.biweekly,
+            ev.start_week,
+        )
+        if ev.max_reps is not None:
+            lecture_dates = lecture_dates[:ev.max_reps]
+
+        for lecture_date in lecture_dates:
+            writer.writerow([
+                ev.summary,
+                lecture_date.strftime("%d-%m-%Y"),
+                ev.start_time.strftime("%H:%M"),
+                ev.end_time.strftime("%H:%M"),
+                1,
+            ])
+
+    return buf.getvalue()

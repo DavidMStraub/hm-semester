@@ -1,4 +1,5 @@
-from datetime import time
+from collections import defaultdict
+from datetime import date, time, timedelta
 from zoneinfo import ZoneInfo
 
 import icalendar
@@ -101,7 +102,6 @@ def test_create_agenda_no_holidays():
     
     # Check that none of the lectures fall in Christmas break
     # Winter 2025 Christmas break is roughly Dec 24, 2025 - Jan 6, 2026
-    from datetime import date
     christmas_start = date(2025, 12, 24)
     christmas_end = date(2026, 1, 6)
     
@@ -235,7 +235,6 @@ def test_biweekly_start_week_greater_than_two():
     vevents = [c for c in cal.walk() if c.name == "VEVENT"]
     
     # Group events by course_id
-    from collections import defaultdict
     groups = defaultdict(list)
     for event in vevents:
         uid = event.get("uid")
@@ -270,8 +269,6 @@ def test_biweekly_start_week_greater_than_two():
     # 
     # Note: Groups A and C overlap (both on odd weeks), and B and D overlap (both on even weeks)
     # This is the current behavior when using start_week for biweekly scheduling
-    
-    from datetime import timedelta
     
     # All groups should have different first dates
     assert len(set(first_dates.values())) == 4, "Each group should start on a different date"
@@ -316,15 +313,126 @@ def test_biweekly_holiday_shifts_to_next_week():
     
     # Week 3 Thursday is April 2 (holiday), so should shift to week 4 (April 9)
     # Then continue biweekly: week 4, 6, 8, 10...
-    from datetime import date, timedelta
-    
+
     # First occurrence should be April 9 (week 4), not skipping to April 16 (week 5)
     assert dates[0] == date(2026, 4, 9), f"Expected first date to be April 9 (shifted from holiday), got {dates[0]}"
-    
+
     # Second occurrence should be April 23 (two weeks after April 9)
     assert dates[1] == date(2026, 4, 23), f"Expected second date to be April 23, got {dates[1]}"
-    
-    # Verify all dates are exactly 2 weeks apart
+
+    # Gaps are normally 14 days; a single-day public holiday landing on a biweekly
+    # slot causes the next occurrence to shift by one extra week → 21-day gap.
     for i in range(len(dates) - 1):
         days_diff = (dates[i + 1] - dates[i]).days
-        assert days_diff == 14, f"Events should be exactly 14 days apart, got {days_diff} between {dates[i]} and {dates[i+1]}"
+        assert days_diff in (14, 21), (
+            f"Expected 14 or 21 days between occurrences, "
+            f"got {days_diff} between {dates[i]} and {dates[i+1]}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Public holiday skipping
+# ---------------------------------------------------------------------------
+
+
+def _thu_summer(year: int) -> set[date]:
+    """Helper: lecture dates for a weekly Thursday course in the given summer semester."""
+    events = [
+        WeeklyEvent(
+            summary="Thu Lecture",
+            course_id="thu",
+            weekday=3,
+            start_time=time(9, 0),
+            end_time=time(10, 30),
+        )
+    ]
+    cal = create_agenda(events, year, "de", "summer")
+    return {ev.get("dtstart").dt.date() for ev in cal.walk() if ev.name == "VEVENT"}
+
+
+def _weekday_summer(weekday: int, year: int) -> set[date]:
+    """Helper: lecture dates for a weekly course on the given weekday in summer semester."""
+    events = [
+        WeeklyEvent(
+            summary="Lecture",
+            course_id="lec",
+            weekday=weekday,
+            start_time=time(9, 0),
+            end_time=time(10, 30),
+        )
+    ]
+    cal = create_agenda(events, year, "de", "summer")
+    return {ev.get("dtstart").dt.date() for ev in cal.walk() if ev.name == "VEVENT"}
+
+
+def _weekday_winter(weekday: int, year: int) -> set[date]:
+    """Helper: lecture dates for a weekly course on the given weekday in winter semester."""
+    events = [
+        WeeklyEvent(
+            summary="Lecture",
+            course_id="lec",
+            weekday=weekday,
+            start_time=time(9, 0),
+            end_time=time(10, 30),
+        )
+    ]
+    cal = create_agenda(events, year, "de", "winter")
+    return {ev.get("dtstart").dt.date() for ev in cal.walk() if ev.name == "VEVENT"}
+
+
+# --- Summer semester 2026 public holidays ---
+
+def test_agenda_skips_christi_himmelfahrt_2026():
+    """Christi Himmelfahrt 2026 = 14 May (Thursday) must have no lecture."""
+    assert date(2026, 5, 14) not in _thu_summer(2026)
+
+
+def test_agenda_skips_fronleichnam_2026():
+    """Fronleichnam 2026 = 4 June (Thursday) must have no lecture."""
+    assert date(2026, 6, 4) not in _thu_summer(2026)
+
+
+def test_agenda_skips_tag_der_arbeit_2026():
+    """1. Mai 2026 is a Friday — no Friday lecture."""
+    assert date(2026, 5, 1) not in _weekday_summer(4, 2026)
+
+
+def test_agenda_skips_pfingstmontag_2026():
+    """Pfingstmontag 2026 = 25 May (Monday) must have no lecture."""
+    assert date(2026, 5, 25) not in _weekday_summer(0, 2026)
+
+
+def test_agenda_skips_karfreitag_2026():
+    """Karfreitag 2026 = 3 April (Friday) must have no lecture."""
+    assert date(2026, 4, 3) not in _weekday_summer(4, 2026)
+
+
+def test_agenda_skips_ostermontag_2026():
+    """Ostermontag 2026 = 6 April (Monday) must have no lecture."""
+    assert date(2026, 4, 6) not in _weekday_summer(0, 2026)
+
+
+# --- Winter semester 2025 public holidays ---
+
+def test_agenda_skips_tag_der_deutschen_einheit_2025():
+    """Tag der Deutschen Einheit 2025 = 3 October (Friday) must have no lecture."""
+    assert date(2025, 10, 3) not in _weekday_winter(4, 2025)
+
+
+def test_agenda_skips_allerheiligen_2025():
+    """Allerheiligen 2025 = 1 November (Saturday) — falls on weekend, no lecture anyway.
+    Use 2026 where it's a Sunday, and 2024 where it falls on a Friday to properly test."""
+    # WS 2024: Allerheiligen = 1 Nov 2024 (Friday)
+    assert date(2024, 11, 1) not in _weekday_winter(4, 2024)
+
+
+def test_agenda_skips_christmas_eve_winter():
+    """No Monday lecture on 24 December during Christmas break."""
+    # WS 2025: 24 Dec 2025 is a Wednesday
+    assert date(2025, 12, 24) not in _weekday_winter(2, 2025)
+
+
+def test_agenda_skips_heilige_drei_koenige_winter():
+    """Heilige Drei Könige (6 Jan) is a Bavarian holiday — should be skipped in WS.
+    In WS 2025 it falls on a Tuesday (6 Jan 2026)."""
+    assert date(2026, 1, 6) not in _weekday_winter(1, 2025)

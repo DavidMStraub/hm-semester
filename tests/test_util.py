@@ -1,13 +1,15 @@
 from datetime import date
+
 from hm_semester.util import (
-    adjust_start_date,
     adjust_end_date,
+    adjust_start_date,
     get_christmas_break,
     get_easter_break,
-    get_pentecost_break,
     get_holiday_dates,
+    get_pentecost_break,
+    get_summer_semester_info,
+    get_winter_semester_info,
 )
-from hm_semester.util import get_summer_semester_info, get_winter_semester_info
 
 
 def test_adjust_start_date_monday():
@@ -19,7 +21,6 @@ def test_adjust_start_date_friday():
 
 
 def test_adjust_start_date_sunday():
-
     assert adjust_start_date(date(2025, 3, 16)) == date(2025, 3, 17)
 
 
@@ -114,10 +115,7 @@ def test_holiday_dates_winter_contains_christmas_break():
 
 
 def test_holiday_dates_outside_semester_not_included():
-    # Heilige Drei Könige = 6 January; falls after winter semester end (~25 Jan)
-    # but let's verify a summer holiday is NOT present in winter semester
+    # Fronleichnam 2026 = 4 June is well outside winter semester
     info = get_winter_semester_info(2025, "de")
     holidays = get_holiday_dates(info)
-    # Fronleichnam 2026 = 4 June is well outside winter semester
     assert date(2026, 6, 4) not in holidays, "Summer holiday should not appear in winter semester"
-

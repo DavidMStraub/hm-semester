@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+import holidays as public_holidays
 from dateutil.easter import easter
 
 from .const import LABELS
@@ -50,21 +51,32 @@ def get_pentecost_break(year: int) -> tuple[date, date]:
 def get_holiday_dates(semester_info: SemesterInfo) -> set[date]:
     """
     Return a set of all dates when lectures do not take place.
-    This includes all days within semester breaks.
-    
+    Includes all days within semester breaks and all Bavarian public holidays
+    (holidays.Germany state='BY') that fall within the semester date range.
+
     Args:
         semester_info: The semester information containing break periods
-        
+
     Returns:
         Set of dates when lectures do not occur
     """
-    holidays = set()
+    holiday_dates: set[date] = set()
+
+    # Add all days within semester break periods
     for break_start, break_end in semester_info.breaks.values():
         current = break_start
         while current <= break_end:
-            holidays.add(current)
+            holiday_dates.add(current)
             current += timedelta(days=1)
-    return holidays
+
+    # Add Bavarian public holidays within the semester date range
+    years = {semester_info.start_date.year, semester_info.end_date.year}
+    by_holidays = public_holidays.Germany(subdiv="BY", years=years)
+    for h_date in by_holidays.keys():
+        if semester_info.start_date <= h_date <= semester_info.end_date:
+            holiday_dates.add(h_date)
+
+    return holiday_dates
 
 
 def get_winter_semester_info(year: int, lang: str) -> SemesterInfo:
